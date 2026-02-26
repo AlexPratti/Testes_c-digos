@@ -3,8 +3,10 @@ import numpy as np
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
 
-# --- FUNÇÕES CORE (MANTIDAS) ---
+# --- FUNÇÕES CORE (NBR 17227:2025) ---
 def calc_ia_step(ibf, g, k):
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
     log_base = k1 + k2 * np.log10(ibf) + k3 * np.log10(g)
@@ -31,10 +33,9 @@ def interpolar(v, f600, f2700, f14300):
     return f2700 + (f14300 - f2700) * (v - 2.7) / 11.6
 
 def main():
-    st.set_page_config(page_title="Gestão de Risco de Arco Elétrico", layout="wide")
+    st.set_page_config(page_title="Laudo Técnico Arco Elétrico", layout="wide")
     st.title("⚡ Gestão de Risco de Arco Elétrico - NBR 17227:2025")
 
-    # Base de dados expandida (8 opções)
     equipamentos = {
         "CCM 15 kV": {"gap": 152.0, "dist": 914.4, "dim": [914.4, 914.4, 914.4]},
         "Conjunto de manobra 15 kV": {"gap": 152.0, "dist": 914.4, "dim": [1143.0, 762.0, 762.0]},
@@ -54,30 +55,29 @@ def main():
     
     tab1, tab2, tab3 = st.tabs(["Equipamento/Dimensões", "Cálculos e Resultados", "Relatório"])
 
-    # --- ABA 1 ---
     with tab1:
-        st.subheader("Seleção de Equipamento e Dimensões")
+        st.subheader("Seleção de Equipamento e Parâmetros")
         escolha = st.selectbox("Selecione o Equipamento:", list(equipamentos.keys()))
         info = equipamentos[escolha]
         
         if escolha == "Conjunto de manobra 5 kV":
-            escolha_dim = st.selectbox("Selecione a dimensão do invólucro (AxLxP):", options=list(info["opcoes"].keys()))
+            escolha_dim = st.selectbox("Selecione a dimensão do invólucro:", options=list(info["opcoes"].keys()))
             alt, larg, prof = info["opcoes"][escolha_dim]
         else:
             alt, larg, prof = info["dim"]
 
         gap_base = info["gap"]
         dist_base = info["dist"]
+        dim_str = f"{alt} x {larg} x {prof} mm"
 
         st.markdown("---")
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("GAP (mm)", f"{gap_base}")
         c2.metric("D_trab (mm)", f"{dist_base}")
-        c3.metric("Altura (A)", f"{alt} mm")
-        c4.metric("Largura (L)", f"{larg} mm")
-        c5.metric("Profundidade (P)", f"{prof} mm")
+        c3.metric("Altura [A]", f"{alt} mm")
+        c4.metric("Largura [L]", f"{larg} mm")
+        c5.metric("Profundidade [P]", f"{prof} mm")
 
-    # --- ABA 2 ---
     with tab2:
         col_a, col_b, col_c = st.columns(3)
         v_oc = col_a.number_input("Tensão Voc (kV)", value=13.80, format="%.2f")
@@ -89,7 +89,6 @@ def main():
         dist_d = col_e.number_input("Distância D (mm)", value=float(dist_base), format="%.2f")
 
         if st.button("Calcular Resultados"):
-            # Coeficientes
             k_ia = {
                 600: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092],
                 2700: [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729],
@@ -109,43 +108,79 @@ def main():
             dl_sts = [calc_dla_step(ia, i_bf, gap_g, tempo_t, k_en[v], cf) for ia, v in zip(ia_sts, [600, 2700, 14300])]
 
             ia_f = interpolar(v_oc, *ia_sts)
-            e_f = (interpolar(v_oc, *en_sts)/4.184)
+            e_jcm2 = interpolar(v_oc, *en_sts)
+            e_calcm2 = e_jcm2 / 4.184
             dla_f = interpolar(v_oc, *dl_sts)
             ia_min = ia_f * (1 - 0.5*(-0.0001*v_oc**2 + 0.0022*v_oc + 0.02))
 
-            cat = "Cat 2 (8 cal)" if e_f <= 8 else "Cat 4 (40 cal)" if e_f <= 40 else "PERIGO"
+            cat = "CAT 2" if e_calcm2 <= 8 else "CAT 4" if e_calcm2 <= 40 else "EXTREMO RISCO (PROIBIDO)"
             
-            # SALVANDO NO SESSION STATE COM CHAVES CORRETAS
             st.session_state['res'] = {
-                "Ia": ia_f, "E": e_f, "DLA": dla_f, "IaMin": ia_min, 
-                "Cat": cat, "Voc": v_oc, "Equip": escolha
+                "Ia": ia_f, "E_cal": e_calcm2, "E_joule": e_jcm2, "DLA": dla_f, 
+                "IaMin": ia_min, "Cat": cat, "Voc": v_oc, "Equip": escolha,
+                "Gap": gap_g, "Dist": dist_d, "Dim": dim_str, "Ibf": i_bf, "Tempo": tempo_t
             }
             
             st.divider()
             r1, r2, r3, r4 = st.columns(4)
-            r1.metric("Ia Final (kA)", f"{ia_f:.5f}")
-            r2.metric("Ia Reduzida (kA)", f"{ia_min:.5f}")
-            r3.metric("Energia (cal/cm²)", f"{e_f:.4f}")
+            r1.metric("Ia Final (kA)", f"{ia_f:.4f}")
+            r2.metric("Energia (cal/cm²)", f"{e_calcm2:.2f}")
+            r3.metric("Energia (J/cm²)", f"{e_jcm2:.2f}")
             r4.metric("Fronteira (mm)", f"{dla_f:.0f}")
-            st.warning(f"🛡️ Vestimenta: {cat}")
+            st.warning(f"🛡️ Vestimenta Sugerida: **{cat}**")
 
-    # --- ABA 3 ---
     with tab3:
-        # AQUI FOI CORRIGIDO O ERRO: Adicionada verificação se 'res' existe antes de tentar ler
         if 'res' in st.session_state:
             r = st.session_state['res']
-            st.subheader(f"Relatório Técnico - {r['Equip']}")
+            st.subheader(f"Laudo Técnico de Conformidade - {r['Equip']}")
             
             def export_pdf():
-                buf = io.BytesIO(); c = canvas.Canvas(buf, pagesize=A4)
-                c.drawString(100, 800, f"RELATÓRIO: {r['Equip']}")
-                c.drawString(100, 780, f"Energia Incidente: {r['E']:.4f} cal/cm2")
-                c.drawString(100, 760, f"Categoria: {r['Cat']}")
+                buf = io.BytesIO()
+                c = canvas.Canvas(buf, pagesize=A4)
+                # Cabeçalho Profissional
+                c.setStrokeColor(colors.black); c.rect(1*cm, 25.5*cm, 19*cm, 3*cm)
+                c.setFont("Helvetica-Bold", 14)
+                c.drawString(7.5*cm, 27*cm, "LAUDO TÉCNICO DE ARCO ELÉTRICO")
+                c.setFont("Helvetica", 9)
+                c.drawString(7.5*cm, 26.5*cm, "Conforme NBR 17227:2025 | NR-10")
+                c.drawString(1.5*cm, 26*cm, "[ ESPAÇO PARA LOGOTIPO DA EMPRESA ]")
+                
+                # Dados do Equipamento
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, 24.5*cm, "1. DADOS DO EQUIPAMENTO E ENTRADA")
+                c.setFont("Helvetica", 10)
+                y = 23.8*cm
+                c.drawString(1.5*cm, y, f"Equipamento: {r['Equip']}"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"GAP [G]: {r['Gap']} mm | Distância de Trabalho [D]: {r['Dist']} mm"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Dimensões do Invólucro [AxLxP]: {r['Dim']}"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Tensão de Operação: {r['Voc']} kV | Curto-Circuito (Ibf): {r['Ibf']} kA"); y -= 1*cm
+
+                # Resultados
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "2. RESULTADOS DOS CÁLCULOS")
+                c.setFont("Helvetica", 10); y -= 0.7*cm
+                c.drawString(1.5*cm, y, f"Corrente de Arco Final (Iarc): {r['Ia']:.4f} kA"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Corrente de Arco Reduzida: {r['IaMin']:.4f} kA"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Energia Incidente: {r['E_cal']:.4f} cal/cm² ({r['E_joule']:.4f} J/cm²)"); y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Fronteira de Segurança (DLA): {r['DLA']:.0f} mm"); y -= 0.5*cm
+                c.setFont("Helvetica-Bold", 10); c.drawString(1.5*cm, y, f"Vestimenta Definida: {r['Cat']}"); y -= 1*cm
+
+                # Segurança NR-10
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "3. PRESCRIÇÕES DE SEGURANÇA (NR-10)")
+                c.setFont("Helvetica", 9); y -= 0.7*cm
+                texto_epi = [
+                    "EPIs Obrigatórios: Capacete com viseira contra arco, luvas isolantes, protetor auditivo, vestimenta",
+                    f"específica nível {r['Cat']}, calçado sem componentes metálicos.",
+                    "EPCs: Barreiras de isolamento, sinalização de advertência e tapetes isolantes se necessário.",
+                    "Nota: Toda intervenção deve ser precedida de análise de risco e permissão de trabalho (PT)."
+                ]
+                for linha in texto_epi:
+                    c.drawString(1.5*cm, y, linha); y -= 0.4*cm
+                
                 c.save(); return buf.getvalue()
                 
-            st.download_button("📩 Baixar PDF", export_pdf(), "laudo.pdf")
+            st.download_button("📩 Baixar Laudo Profissional (PDF)", export_pdf(), "laudo_arco_profissional.pdf")
+            st.success("Relatório gerado com sucesso!")
         else:
-            st.info("Realize o cálculo na aba anterior para gerar o relatório.")
+            st.info("Execute o cálculo para gerar o relatório profissional.")
 
 if __name__ == "__main__":
     main()
