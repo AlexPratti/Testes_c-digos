@@ -1,49 +1,30 @@
-import streamlit as st
-import numpy as np
-
-def calcular_ia_intermediaria(ibf, g, k):
-    # Coeficientes k1 a k10 da Tabela 4
-    k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
+# --- ADICIONAR ESTA FUNÇÃO AO SEU CÓDIGO ---
+def calcular_var_cf(v_oc, k_var):
+    # Coeficientes k11 a k17 da Tabela 5 da NBR 17227
+    k11, k12, k13, k14, k15, k16, k17 = k_var
     
-    # PARTE A: Logarítmica
-    # (k1 + k2*log10(Ibf) + k3*log10(G))
-    log_base = k1 + k2 * np.log10(ibf) + k3 * np.log10(g)
+    # Equação 2: VarCf é um polinômio de 6º grau baseado na Tensão Voc
+    var_cf = (k11 * v_oc**6 + k12 * v_oc**5 + k13 * v_oc**4 + 
+              k14 * v_oc**3 + k15 * v_oc**2 + k16 * v_oc + k17)
+    return var_cf
+
+# --- DENTRO DA FUNÇÃO MAIN, ADICIONE OS COEFICIENTES E O TESTE ---
+# Coeficientes Tabela 5 - Todos os eletrodos (VCB, VCBB, HCB, VOA, HOA) usam estes:
+k_tabela5 = [0, 0, 0, 0, -0.0001, 0.0022, 0.02]
+
+st.divider()
+st.header("Parte 2: Fator de Variação (Eq. 2)")
+
+v_sistema = st.number_input("Tensão do Sistema Voc (kV)", value=13.80, format="%.2f")
+
+if st.button("Testar Parte 2"):
+    # 1. Calculamos o VarCf
+    var_cf = calcular_var_cf(v_sistema, k_tabela5)
     
-    # PARTE B: Polinomial de correção
-    # (k4*Ibf^6 + k5*Ibf^5 + k6*Ibf^4 + k7*Ibf^3 + k8*Ibf^2 + k9*Ibf + k10)
-    poli = (k4 * ibf**6 + k5 * ibf**5 + k6 * ibf**4 + k7 * ibf**3 + 
-            k8 * ibf**2 + k9 * ibf + k10)
+    # 2. Para testar o I_a_min, precisamos do I_a_final (interpolação da Parte 1)
+    # Supondo que você já tenha o 'ia_final' calculado da Parte 1:
+    # ia_min = ia_final * (1 - 0.5 * var_cf)
     
-    # EQUAÇÃO 1 CORRETA: É uma MULTIPLICAÇÃO entre a base e o polinômio
-    log_ia_final = log_base * poli
-    
-    return 10**log_ia_final
+    st.success(f"Fator VarCf calculado: {var_cf:.5f}")
+    st.info(f"Nota: Se Voc=13.8kV, VarCf deve ser ~0.03132")
 
-def main():
-    st.title("Parte 1: Validação de Correntes Intermediárias (Eq. 1)")
-
-    # Entradas da imagem
-    ibf = st.number_input("Curto-Circuito Ibf (kA)", value=4.85, format="%.2f")
-    gap = st.number_input("Gap G (mm)", value=152.00, format="%.2f")
-
-    # Coeficientes Tabela 4 - VCB
-    coefs = {
-        600:   [-0.04287, 1.035, -0.083, 0.0, 0.0, -4.783e-09, 1.962e-06, -0.000229, 0.003141, 1.092],
-        2700:  [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-08, 8.346e-07, 5.482e-05, 0.003191, 0.9729],
-        14300: [0.005795, 1.015, -0.011, -1.557e-12, 4.556e-10, -4.186e-08, 8.346e-07, 5.482e-05, -0.003191, 0.9729]
-    }
-
-    if st.button("Testar Parte 1"):
-        ia600 = calcular_ia_intermediaria(ibf, gap, coefs[600])
-        ia2700 = calcular_ia_intermediaria(ibf, gap, coefs[2700])
-        ia14300 = calcular_ia_intermediaria(ibf, gap, coefs[14300])
-
-        st.success("Resultados da Equação 1 (Corrigidos):")
-        st.write(f"**Ia @ 600V:** {ia600:.5f} kA")
-        st.write(f"**Ia @ 2700V:** {ia2700:.5f} kA")
-        st.write(f"**Ia @ 14300V:** {ia14300:.5f} kA")
-        
-        st.info(f"Validação: Ia_600 esperado: 3,37423 | Calculado: {ia600:.5f}")
-
-if __name__ == "__main__":
-    main()
