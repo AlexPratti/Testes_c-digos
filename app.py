@@ -45,12 +45,10 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📏 Tabela 1", "🧪 Cálculos e Resultados", "📄 Relatório"])
 
     with tab1:
-        st.header("Tabela 1: Dimensões de Invólucros")
-        escolha = st.selectbox("Equipamento:", list(dados_inv.keys()), key="sel_tab1")
-        info = dados_inv[escolha]
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("GAP", f"{info[0]} mm"); c2.metric("Distância D", f"{info[1]} mm")
-        c3.metric("Altura", f"{info[2]} mm"); c4.metric("Largura", f"{info[3]} mm"); c5.metric("Profundidade", f"{info[4]} mm")
+        escolha = st.selectbox("Equipamento:", list(equipamentos.keys()))
+        info = equipamentos[escolha]
+        c = st.columns(5); tts = ["GAP", "D_trab", "Alt", "Larg", "Prof"]
+        for i in range(5): c[i].metric(tts[i], f"{info[i]} mm")
 
     with tab2:
         with st.form("calc_form"):
