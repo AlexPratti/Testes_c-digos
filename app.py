@@ -4,7 +4,7 @@ import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
-# --- FUNÇÕES CORE (NBR 17227) ---
+# --- FUNÇÕES CORE (NBR 17227:2025) ---
 
 def calc_ia_step(ibf, g, k):
     k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
@@ -38,13 +38,14 @@ def main():
     equipamentos = {
         "CCM 15 kV": [152, 914.4, 914.4, 914.4, 914.4],
         "Conjunto de manobra 15 kV": [152, 914.4, 1143.0, 762.0, 762.0],
-        "CCM e painel típico de BT": [25, 457.2, 355.6, 304.8, 203.3]
+        "CCM 5 kV": [104, 914.4, 660.4, 660.4, 660.4],
+        "CCM e painel BT": [25, 457.2, 355.6, 304.8, 203.3]
     }
     
     tab1, tab2, tab3 = st.tabs(["📏 Tabela 1", "🧪 Cálculos e Resultados", "📄 Relatório"])
 
     with tab1:
-        escolha = st.selectbox("Selecione o Equipamento:", list(equipamentos.keys()))
+        escolha = st.selectbox("Equipamento:", list(equipamentos.keys()))
         info = equipamentos[escolha]
         c = st.columns(5); tts = ["GAP", "D_trab", "Alt", "Larg", "Prof"]
         for i in range(5): c[i].metric(tts[i], f"{info[i]} mm")
@@ -57,47 +58,57 @@ def main():
             gap = c2.number_input("Gap G (mm)", value=float(info[0]))
             dist = c2.number_input("Distância D (mm)", value=float(info[1]))
             tempo = c3.number_input("Tempo T (ms)", value=488.0)
-            submit = st.form_submit_button("Calcular Resultados Finais")
+            submit = st.form_submit_button("Calcular Resultados")
 
         if submit:
-            k_ia = {600: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092],
-                    2700: [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729],
-                    14300: [0.005795, 1.015, -0.011, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729]}
-            k_en = {600: [0.753364, 0.566, 1.752636, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092, 0, -1.598, 0.957],
-                    2700: [2.40021, 0.165, 0.354202, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.569, 0.9778],
-                    14300: [3.825917, 0.11, -0.999749, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.568, 0.99]}
+            # Coeficientes
+            k_ia = {
+                600: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092],
+                2700: [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729],
+                14300: [0.005795, 1.015, -0.011, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729]
+            }
+            k_en = {
+                600: [0.753364, 0.566, 1.752636, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092, 0, -1.598, 0.957],
+                2700: [2.40021, 0.165, 0.354202, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.569, 0.9778],
+                14300: [3.825917, 0.11, -0.999749, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.568, 0.99]
+            }
             
-            ees = (info[2]/25.4 + info[3]/25.4) / 2.0; cf = -0.0003*ees**2 + 0.03441*ees + 0.4325
+            ees = (info[2]/25.4 + info[3]/25.4) / 2.0
+            cf = -0.0003*ees**2 + 0.03441*ees + 0.4325
             
-            # Intermediários
+            # Cálculos
             ia_sts = [calc_ia_step(i_bf, gap, k_ia[v]) for v in [600, 2700, 14300]]
             en_sts = [calc_en_step(ia, i_bf, gap, dist, tempo, k_en[v], cf) for ia, v in zip(ia_sts, [600, 2700, 14300])]
             dl_sts = [calc_dla_step(ia, i_bf, gap, tempo, k_en[v], cf) for ia, v in zip(ia_sts, [600, 2700, 14300])]
 
-            # Finais
-            ia_f = interpolar(v_oc, *ia_sts); e_f = interpolar(v_oc, *en_sts)/4.184; dla_f = interpolar(v_oc, *dl_sts)
-            var_cf = -0.0001*v_oc**2 + 0.0022*v_oc + 0.02; ia_min = ia_f * (1 - 0.5*var_cf)
+            ia_f = interpolar(v_oc, *ia_sts)
+            e_f = interpolar(v_oc, *en_sts)/4.184
+            dla_f = interpolar(v_oc, *dl_sts)
+            var_cf = -0.0001*v_oc**2 + 0.0022*v_oc + 0.02
+            ia_min = ia_f * (1 - 0.5*var_cf)
 
-            if e_f <= 1.2: cat = "Risco 0"; b_color = "green"
-            elif e_f <= 8: cat = "Categoria 2 (8 cal)"; b_color = "orange"
-            elif e_f <= 25: cat = "Categoria 3 (25 cal)"; b_color = "red"
-            else: cat = "Categoria 4 (40 cal)"; b_color = "red"
-
-            st.session_state['res'] = {"Ia": ia_f, "E": e_f, "DLA": dla_f, "IaMin": ia_min, "Cat": cat, "Voc": v_oc, "VarCf": var_cf}
+            cat = "Cat 2 (8 cal)" if e_f <= 8 else "Cat 4 (40 cal)" if e_f <= 40 else "PERIGO"
+            
+            st.session_state['res'] = {"Ia": ia_f, "E": e_f, "DLA": dla_f, "IaMin": ia_min, "Cat": cat, "Voc": v_oc}
             
             st.divider()
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Ia Final (kA)", f"{ia_f:.5f}"); c2.metric("Ia Reduzida (kA)", f"{ia_min:.5f}")
-            c3.metric("Energia (cal/cm²)", f"{e_f:.4f}"); c4.metric("Fronteira (mm)", f"{dla_f:.0f}")
-            st.warning(f"🛡️ **Vestimenta Sugerida:** {cat}")
+            c1.metric("Ia Final (kA)", f"{ia_f:.5f}")
+            c2.metric("Ia Reduzida (kA)", f"{ia_min:.5f}")
+            c3.metric("Energia (cal/cm²)", f"{e_f:.4f}")
+            c4.metric("Fronteira (mm)", f"{dla_f:.0f}")
+            st.warning(f"🛡️ Vestimenta: {cat}")
 
     with tab3:
         if 'res' in st.session_state:
             def export_pdf():
                 buf = io.BytesIO(); c = canvas.Canvas(buf, pagesize=A4); r = st.session_state['res']
-                c.drawString(100, 800, "LAUDO TÉCNICO DE ARCO ELÉTRICO"); c.drawString(100, 780, f"Tensão: {r['Voc']} kV")
+                c.drawString(100, 800, "LAUDO TÉCNICO DE ARCO ELÉTRICO")
+                c.drawString(100, 780, f"Tensão: {r['Voc']} kV | Energia: {r['E']:.4f} cal/cm2")
                 c.drawString(100, 760, f"Ia: {r['Ia']:.5f} kA | Ia_min: {r['IaMin']:.5f} kA")
-                c.drawString(100, 740, f"Energia Incidente: {r['E']:.4f} cal/cm2")
-                c.drawString(100, 720, f"Fronteira de Arco (DLA): {r['DLA']:.0f} mm")
-                c.drawString(100, 700, f"Vestimenta: {r['Cat']}"); c.save(); return buf.getvalue()
-            st.download_button("📩 Baixar Laudo PDF", export_pdf(), "laudo.pdf", "application/pdf")
+                c.drawString(100, 740, f"DLA: {r['DLA']:.0f} mm | Vestimenta: {r['Cat']}")
+                c.save(); return buf.getvalue()
+            st.download_button("📩 Baixar PDF", export_pdf(), "laudo.pdf", "application/pdf")
+
+if __name__ == "__main__":
+    main()
