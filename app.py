@@ -1,34 +1,39 @@
 import streamlit as st
 
-# Configuração da página
-st.set_page_config(page_title="Calculadora de Distância", page_icon="⚡")
+def main():
+    st.title("Calculadora de Dimensões e Espaçamentos")
 
-st.title("Calculadora de Distância de Trabalho")
+    # Base de dados baseada na imagem (Tabela 1)
+    # Formato: "Equipamento": [Espaçamento, Altura, Largura, Profundidade]
+    dados = {
+        "CCM 15 kV": ["152", "914,4", "914,4", "914,4"],
+        "Conjunto de manobra 15 kV": ["152", "1143", "762", "762"],
+        "CCM 5 kV": ["104", "660,4", "660,4", "660,4"],
+        "Conjunto de manobra 5 kV (Opção 1)": ["104", "914,4", "914,4", "914,4"],
+        "Conjunto de manobra 5 kV (Opção 2)": ["104", "1143", "762", "762"],
+        "CCM e painel rasos de BT": ["25", "355,6", "304,8", "≤203,2"],
+        "CCM e painel típico de BT": ["25", "355,6", "304,8", ">203,2"],
+        "Conjunto de manobra BT": ["32", "508", "508", "508"],
+        "Caixa de junção de cabos": ["13", "355,6", "304,8", "≤203,2 ou >203,2"]
+    }
 
-# Base de dados
-tabela = {
-    ("CCM", "15 kV"): 914.4,
-    ("Conjunto de manobra", "15 kV"): 914.4,
-    ("CCM", "5 kV"): 914.4,
-    ("Conjunto de manobra", "5 kV"): 914.4,
-    ("CCM e painel raso de BT", "BT"): 457.2,
-    ("CCM e painel típico de BT", "BT"): 457.2,
-    ("Conjunto de manobra BT", "BT"): 609.6,
-    ("Caixa de junção de cabos", "BT"): 457.2
-}
+    # Campo único de seleção
+    escolha = st.selectbox("Selecione o Equipamento e Classe de Tensão:", list(dados.keys()))
 
-# Inputs do usuário
-equip = st.selectbox("Selecione o Equipamento:", [
-    "CCM", "Conjunto de manobra", "CCM e painel raso de BT", 
-    "CCM e painel típico de BT", "Conjunto de manobra BT", "Caixa de junção de cabos"
-])
+    if escolha:
+        info = dados[escolha]
+        
+        # Layout em colunas para os resultados
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Espaçamento Típico", f"{info[0]} mm")
+        
+        with col2:
+            st.subheader("Tamanho do Invólucro (mm)")
+            st.write(f"**Altura:** {info[1]}")
+            st.write(f"**Largura:** {info[2]}")
+            st.write(f"**Profundidade:** {info[3]}")
 
-tensao = st.selectbox("Selecione a Classe de Tensão:", ["15 kV", "5 kV", "BT"])
-
-if st.button("Verificar Distância"):
-    resultado = tabela.get((equip, tensao))
-    
-    if resultado:
-        st.success(f"### Distância: {resultado} mm")
-    else:
-        st.warning("Combinação não encontrada na tabela.")
+if __name__ == "__main__":
+    main()
