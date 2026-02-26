@@ -3,95 +3,63 @@ import numpy as np
 
 # --- FUNÇÕES DE CÁLCULO ---
 
-def calcular_ia_intermediaria(ibf, g, k):
-    """Calcula Ia para um patamar de tensão (Eq. 1)"""
-    k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
-    log_base = k1 + k2 * np.log10(ibf) + k3 * np.log10(g)
-    poli = (k4 * ibf**6 + k5 * ibf**5 + k6 * ibf**4 + k7 * ibf**3 + 
-            k8 * ibf**2 + k9 * ibf + k10)
+def calcular_ia_step(ibf, g, k):
+    """Calcula Ia intermediária (Eq. 1)"""
+    # k = [k1 a k10]
+    log_base = k[0] + k[1] * np.log10(ibf) + k[2] * np.log10(g)
+    poli = (k[3]*ibf**6 + k[4]*ibf**5 + k[5]*ibf**4 + k[6]*ibf**3 + 
+            k[7]*ibf**2 + k[8]*ibf + k[9])
     return 10**(log_base * poli)
 
-def calcular_var_cf(v_oc, k_var):
-    """Calcula o Fator de Variação da Corrente (Eq. 2)"""
-    k11, k12, k13, k14, k15, k16, k17 = k_var
-    var_cf = (k11 * v_oc**6 + k12 * v_oc**5 + k13 * v_oc**4 + 
-              k14 * v_oc**3 + k15 * v_oc**2 + k16 * v_oc + k17)
-    return var_cf
-
-def calcular_cf(altura, largura, profundidade, config, tipo_involucro):
-    """Calcula o Fator de Correção do Invólucro (Eq. 13 a 15 e Tabela 8)"""
-    # 1. Converter dimensões para polegadas (Norma usa pol para EES)
-    A, L, P = altura / 25.4, largura / 25.4, profundidade / 25.4
+def calcular_en_step(ia, ibf, g, d, t, k, cf):
+    """Calcula Energia Incidente Intermediária (Eq. 3) em cal/cm²"""
+    # k = [k1 a k13 da Tabela 6]
+    # Termo polinomial de Ibf para energia
+    poli_en = (k[3]*ibf**6 + k[4]*ibf**5 + k[5]*ibf**4 + k[6]*ibf**3 + 
+               k[7]*ibf**2 + k[8]*ibf + k[9])
     
-    # 2. Calcular EES (Tamanho Equivalente do Invólucro) - Eq. 14 e 15
-    if config in ["VCB", "VCBB", "HCB"]:
-        ees = (A + L) / 2.0 if P > 8 else A # Simplificação da norma para P <= 8 pol
-    else: # VOA ou HOA
-        ees = (A + L) / 2.0
+    # log10(E) = k1 + k2*log10(G) + (k3*Ia)/poli_en + k11*log10(Ibf) + k12*log10(D) + k13*log10(Ia) + log10(1/CF)
+    log_e = (k[0] + k[1]*np.log10(g) + (k[2]*ia)/poli_en + 
+             k[10]*np.log10(ibf) + k[11]*np.log10(d) + k[12]*np.log10(ia) + np.log10(1.0/cf))
     
-    # 3. Coeficientes b1, b2, b3 da Tabela 8 (Exemplo para VCB)
-    # Típico: [-0.0003, 0.03441, 0.4325] | Raso: [0.00222, -0.0256, 0.6222]
-    # Usaremos VCB Típico como padrão para este teste:
-    b1, b2, b3 = -0.0003, 0.03441, 0.4325
-    
-    if tipo_involucro == "Típico":
-        cf = b1 * ees**2 + b2 * ees + b3
-    else: # Raso
-        cf = 1.0 / (b1 * ees**2 + b2 * ees + b3)
-        
-    return ees, cf
+    # Energia em J/cm² (Normalizada p/ 50ms)
+    e_jcm2 = 12.552 * (t / 50.0) * 10**log_e
+    return e_jcm2 / 4.184 # Retorna cal/cm²
 
 # --- INTERFACE STREAMLIT ---
 
 def main():
-    st.set_page_config(page_title="NBR 17227 - Etapas 1 a 3", layout="wide")
-    st.title("⚡ Calculadora NBR 17227:2025 - Partes 1, 2 e 3")
+    st.set_page_config(page_title="NBR 17227 - Etapa 4", layout="wide")
+    st.title("⚡ Calculadora NBR 17227:2025 - Parte 4 (Energia Intermediária)")
 
     # --- SIDEBAR INPUTS ---
     st.sidebar.header("Parâmetros do Sistema")
-    ibf = st.sidebar.number_input("Curto-Circuito Ibf (kA)", value=4.85)
+    ibf = st.sidebar.number_input("Curto-Circuito Ibf (kA)", value=4.852)
     gap = st.sidebar.number_input("Gap G (mm)", value=152.0)
-    v_sistema = st.sidebar.number_input("Tensão Voc (kV)", value=13.80)
+    dist_d = st.sidebar.number_input("Distância de Trabalho D (mm)", value=914.4)
+    tempo_t = st.sidebar.number_input("Duração do Arco T (ms)", value=488.0)
     
-    st.sidebar.header("Dimensões do Invólucro (mm)")
-    alt = st.sidebar.number_input("Altura (A)", value=914.4)
-    larg = st.sidebar.number_input("Largura (L)", value=914.4)
-    prof = st.sidebar.number_input("Profundidade (P)", value=914.4)
-    tipo_inv = st.sidebar.radio("Tipo de Invólucro:", ["Típico", "Raso"])
+    # Coeficientes Tabela 4 (Ia) - VCB 600V (Exemplo)
+    k_ia_600 = [-0.04287, 1.035, -0.083, 0.0, 0.0, -4.783e-09, 1.962e-06, -0.000229, 0.003141, 1.092]
+    # Coeficientes Tabela 6 (Energia) - VCB 600V (Exemplo)
+    k_en_600 = [0.753364, 0.566, 1.752636, 0.0, 0.0, -4.783e-09, 1.962e-06, -0.000229, 0.003141, 1.092, 0, -1.598, 0.957]
+    
+    # Fator CF (Calculado na Parte 3, fixado aqui para teste conforme seu Excel)
+    cf = 1.28372
 
-    # --- COEFICIENTES ---
-    coefs_ia = {
-        600:   [-0.04287, 1.035, -0.083, 0.0, 0.0, -4.783e-09, 1.962e-06, -0.000229, 0.003141, 1.092],
-        2700:  [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-08, 8.346e-07, 5.482e-05, 0.003191, 0.9729],
-        14300: [0.005795, 1.015, -0.011, -1.557e-12, 4.556e-10, -4.186e-08, 8.346e-07, 5.482e-05, -0.003191, 0.9729]
-    }
-    k_var = [0, 0, 0, 0, -0.0001, 0.0022, 0.02]
-
-    # --- PROCESSAMENTO ---
-    if st.button("Executar Cálculos (Partes 1, 2 e 3)"):
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.subheader("Parte 1: Correntes")
-            ia600 = calcular_ia_intermediaria(ibf, gap, coefs_ia[600])
-            st.write(f"**Ia @ 600V:** {ia600:.5f} kA")
-            st.write(f"**Ia @ 14.3kV:** {calcular_ia_intermediaria(ibf, gap, coefs_ia[14300]):.5f} kA")
-
-        with col2:
-            st.subheader("Parte 2: VarCf")
-            var_cf = calcular_var_cf(v_sistema, k_var)
-            st.write(f"**VarCf:** {var_cf:.5f}")
-
-        with col3:
-            st.subheader("Parte 3: Fator CF")
-            ees, cf = calcular_cf(alt, larg, prof, "VCB", tipo_inv)
-            st.write(f"**EES (polegadas):** {ees:.2f}")
-            st.write(f"**Fator CF Final:** {cf:.5f}")
-            
-            # Validação: Para 914.4x914.4 (36x36 pol), EES = 36. 
-            # CF para VCB Típico deve ser ~1,28372 conforme seu Excel.
-            if round(cf, 5) == 1.28372:
-                st.success("✅ CF validado com o Excel!")
+    if st.button("Calcular Energia Intermediária (600V)"):
+        # 1. Primeiro calculamos a Ia para 600V
+        ia600 = calcular_ia_step(ibf, gap, k_ia_600)
+        
+        # 2. Calculamos a Energia para 600V
+        e600 = calcular_en_step(ia600, ibf, gap, dist_d, tempo_t, k_en_600, cf)
+        
+        st.subheader("Resultados Validação (600V)")
+        col1, col2 = st.columns(2)
+        col1.metric("Ia @ 600V (kA)", f"{ia600:.5f}")
+        col2.metric("Energia @ 600V (cal/cm²)", f"{e600:.5f}")
+        
+        st.info("Nota: Compare o valor de Energia com sua célula correspondente no Excel.")
 
 if __name__ == "__main__":
     main()
