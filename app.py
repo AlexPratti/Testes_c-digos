@@ -113,11 +113,11 @@ def main():
             dla_f = interpolar(v_oc, *dl_sts)
             ia_min = ia_f * (1 - 0.5*(-0.0001*v_oc**2 + 0.0022*v_oc + 0.02))
 
-            cat = "CAT 2" if e_calcm2 <= 8 else "CAT 4" if e_calcm2 <= 40 else "EXTREMO RISCO (PROIBIDO)"
+            cat = "CAT 2" if e_calcm2 <= 8 else "CAT 4" if e_calcm2 <= 40 else "EXTREMO RISCO"
             
             st.session_state['res'] = {
-                "Ia": ia_f, "E_cal": e_calcm2, "E_joule": e_jcm2, "DLA": dla_f, 
-                "IaMin": ia_min, "Cat": cat, "Voc": v_oc, "Equip": escolha,
+                "Ia": ia_f, "IaMin": ia_min, "E_cal": e_calcm2, "E_joule": e_jcm2, 
+                "DLA": dla_f, "Cat": cat, "Voc": v_oc, "Equip": escolha,
                 "Gap": gap_g, "Dist": dist_d, "Dim": dim_str, "Ibf": i_bf, "Tempo": tempo_t
             }
             
@@ -137,50 +137,52 @@ def main():
             def export_pdf():
                 buf = io.BytesIO()
                 c = canvas.Canvas(buf, pagesize=A4)
-                # Cabeçalho Profissional
-                c.setStrokeColor(colors.black); c.rect(1*cm, 25.5*cm, 19*cm, 3*cm)
-                c.setFont("Helvetica-Bold", 14)
-                c.drawString(7.5*cm, 27*cm, "LAUDO TÉCNICO DE ARCO ELÉTRICO")
-                c.setFont("Helvetica", 9)
-                c.drawString(7.5*cm, 26.5*cm, "Conforme NBR 17227:2025 | NR-10")
-                c.drawString(1.5*cm, 26*cm, "[ ESPAÇO PARA LOGOTIPO DA EMPRESA ]")
                 
-                # Dados do Equipamento
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, 24.5*cm, "1. DADOS DO EQUIPAMENTO E ENTRADA")
-                c.setFont("Helvetica", 10)
-                y = 23.8*cm
-                c.drawString(1.5*cm, y, f"Equipamento: {r['Equip']}"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"GAP [G]: {r['Gap']} mm | Distância de Trabalho [D]: {r['Dist']} mm"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"Dimensões do Invólucro [AxLxP]: {r['Dim']}"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"Tensão de Operação: {r['Voc']} kV | Curto-Circuito (Ibf): {r['Ibf']} kA"); y -= 1*cm
+                # --- Cabeçalho ---
+                c.setStrokeColor(colors.black); c.rect(1*cm, 25.5*cm, 19*cm, 3*cm)
+                c.setFont("Helvetica-Bold", 14); c.drawString(7.5*cm, 27.5*cm, "LAUDO TÉCNICO DE ARCO ELÉTRICO")
+                c.setFont("Helvetica", 9); c.drawString(7.5*cm, 27*cm, "Conforme NBR 17227:2025 | IEEE 1584 | NR-10")
+                c.drawString(1.5*cm, 26.5*cm, "[ INSERIR LOGOTIPO DA EMPRESA ]")
+                
+                # --- 1. Dados de Entrada ---
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, 24.5*cm, "1. DADOS DO EQUIPAMENTO E PARÂMETROS DE ENTRADA")
+                c.setFont("Helvetica", 10); y = 23.8*cm
+                c.drawString(1.5*cm, y, f"Equipamento: {r['Equip']}"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"GAP [G]: {r['Gap']} mm | Distância de Trabalho [D]: {r['Dist']} mm"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Dimensões do Invólucro [AxLxP]: {r['Dim']}"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Tensão de Operação: {r['Voc']} kV | Curto-Circuito (Ibf): {r['Ibf']} kA"); y -= 1.2*cm
 
-                # Resultados
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "2. RESULTADOS DOS CÁLCULOS")
-                c.setFont("Helvetica", 10); y -= 0.7*cm
-                c.drawString(1.5*cm, y, f"Corrente de Arco Final (Iarc): {r['Ia']:.4f} kA"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"Corrente de Arco Reduzida: {r['IaMin']:.4f} kA"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"Energia Incidente: {r['E_cal']:.4f} cal/cm² ({r['E_joule']:.4f} J/cm²)"); y -= 0.5*cm
-                c.drawString(1.5*cm, y, f"Fronteira de Segurança (DLA): {r['DLA']:.0f} mm"); y -= 0.5*cm
-                c.setFont("Helvetica-Bold", 10); c.drawString(1.5*cm, y, f"Vestimenta Definida: {r['Cat']}"); y -= 1*cm
+                # --- 2. Resultados ---
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "2. RESULTADOS DOS CÁLCULOS TÉCNICOS")
+                c.setFont("Helvetica", 10); y -= 0.8*cm
+                c.drawString(1.5*cm, y, f"Corrente de Arco Final (Iarc): {r['Ia']:.4f} kA"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Corrente de Arco Reduzida: {r['IaMin']:.4f} kA"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Energia Incidente: {r['E_cal']:.4f} cal/cm²"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Energia Incidente (S.I.): {r['E_joule']:.4f} J/cm²"); y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Fronteira de Segurança (DLA): {r['DLA']:.0f} mm"); y -= 0.6*cm
+                c.setFont("Helvetica-Bold", 10); c.drawString(1.5*cm, y, f"Categoria de Vestimenta Definida: {r['Cat']}"); y -= 1.5*cm
 
-                # Segurança NR-10
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "3. PRESCRIÇÕES DE SEGURANÇA (NR-10)")
-                c.setFont("Helvetica", 9); y -= 0.7*cm
-                texto_epi = [
-                    "EPIs Obrigatórios: Capacete com viseira contra arco, luvas isolantes, protetor auditivo, vestimenta",
-                    f"específica nível {r['Cat']}, calçado sem componentes metálicos.",
-                    "EPCs: Barreiras de isolamento, sinalização de advertência e tapetes isolantes se necessário.",
-                    "Nota: Toda intervenção deve ser precedida de análise de risco e permissão de trabalho (PT)."
+                # --- 3. NR-10 e EPIs ---
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "3. PRESCRIÇÕES DE SEGURANÇA E EPIs (NR-10)")
+                c.setFont("Helvetica", 9); y -= 0.8*cm
+                epi_text = [
+                    "EPIs Obrigatórios: Capacete com viseira, protetor auditivo, calçados sem metal.",
+                    f"Vestimenta: Deve possuir ATPV superior a {r['E_cal']:.2f} cal/cm² ({r['Cat']}).",
+                    "EPCs: Barreiras, sinalização de 'Risco de Arco' e isolamento da área DLA.",
+                    "Nota: A intervenção exige profissional habilitado e análise de risco (APR)."
                 ]
-                for linha in texto_epi:
-                    c.drawString(1.5*cm, y, linha); y -= 0.4*cm
+                for line in epi_text:
+                    c.drawString(1.5*cm, y, line); y -= 0.5*cm
+                
+                # --- Rodapé Assinatura ---
+                c.line(5*cm, 3*cm, 16*cm, 3*cm)
+                c.setFont("Helvetica", 8); c.drawString(8.5*cm, 2.6*cm, "Engenheiro Responsável / CREA")
                 
                 c.save(); return buf.getvalue()
                 
-            st.download_button("📩 Baixar Laudo Profissional (PDF)", export_pdf(), "laudo_arco_profissional.pdf")
-            st.success("Relatório gerado com sucesso!")
+            st.download_button("📩 Baixar Laudo Profissional (PDF)", export_pdf(), "laudo_arco_profissional.pdf", "application/pdf")
         else:
-            st.info("Execute o cálculo para gerar o relatório profissional.")
+            st.info("⚠️ Execute o cálculo na aba 'Cálculos e Resultados' para habilitar a geração do relatório.")
 
 if __name__ == "__main__":
     main()
