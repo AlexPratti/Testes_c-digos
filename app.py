@@ -33,62 +33,76 @@ def interpolar(v, f600, f2700, f14300):
     return f2700 + (f14300 - f2700) * (v - 2.7) / 11.6
 
 def main():
-    st.set_page_config(page_title="Laudo Técnico Arco Elétrico", layout="wide")
+    st.set_page_config(page_title="Gestão de Arco Elétrico", layout="wide")
     st.title("⚡ Gestão de Risco de Arco Elétrico - NBR 17227:2025")
 
+    # Base de dados (Tabela 1 e Tabela 3 da imagem)
     equipamentos = {
-        "CCM 15 kV": {"gap": 152.0, "dist": 914.4, "dim": [914.4, 914.4, 914.4]},
-        "Conjunto de manobra 15 kV": {"gap": 152.0, "dist": 914.4, "dim": [1143.0, 762.0, 762.0]},
-        "CCM 5 kV": {"gap": 104.0, "dist": 914.4, "dim": [660.4, 660.4, 660.4]},
+        "CCM 15 kV": {"gap": 152.0, "dist": 914.4, "dims": {"914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4]}},
+        "Conjunto de manobra 15 kV": {"gap": 152.0, "dist": 914.4, "dims": {"1143 x 762 x 762": [1143.0, 762.0, 762.0]}},
+        "CCM 5 kV": {"gap": 104.0, "dist": 914.4, "dims": {"660,4 x 660,4 x 660,4": [660.4, 660.4, 660.4]}},
         "Conjunto de manobra 5 kV": {
             "gap": 104.0, "dist": 914.4, 
-            "opcoes": {
+            "dims": {
                 "914,4 x 914,4 x 914,4": [914.4, 914.4, 914.4],
                 "1143 x 762 x 762": [1143.0, 762.0, 762.0]
             }
         },
-        "CCM e painel raso de BT": {"gap": 25.0, "dist": 457.2, "dim": [355.6, 304.8, 203.2]},
-        "CCM e painel típico de BT": {"gap": 25.0, "dist": 457.2, "dim": [355.6, 304.8, 210.0]},
-        "Conjunto de manobra BT": {"gap": 32.0, "dist": 609.6, "dim": [508.0, 508.0, 508.0]},
-        "Caixa de junção de cabos": {"gap": 13.0, "dist": 457.2, "dim": [355.6, 304.8, 203.2]},
+        "CCM e painel raso de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x ≤203,2": [355.6, 304.8, 203.2]}},
+        "CCM e painel típico de BT": {"gap": 25.0, "dist": 457.2, "dims": {"355,6 x 304,8 x >203,2": [355.6, 304.8, 210.0]}},
+        "Conjunto de manobra BT": {"gap": 32.0, "dist": 609.6, "dims": {"508 x 508 x 508": [508.0, 508.0, 508.0]}},
+        "Caixa de junção de cabos": {"gap": 13.0, "dist": 457.2, "dims": {"355,6 x 304,8": [355.6, 304.8, 203.2]}},
     }
     
     tab1, tab2, tab3 = st.tabs(["Equipamento/Dimensões", "Cálculos e Resultados", "Relatório"])
 
+    # --- ABA 1: EQUIPAMENTO/DIMENSÕES ---
     with tab1:
-        st.subheader("Seleção de Equipamento e Parâmetros")
-        escolha = st.selectbox("Selecione o Equipamento:", list(equipamentos.keys()))
-        info = equipamentos[escolha]
+        st.subheader("Configuração de Equipamento e Dimensões")
+        equip_escolhido = st.selectbox("Selecione o Equipamento:", list(equipamentos.keys()))
+        info = equipamentos[equip_escolhido]
         
-        if escolha == "Conjunto de manobra 5 kV":
-            escolha_dim = st.selectbox("Selecione a dimensão do invólucro:", options=list(info["opcoes"].keys()))
-            alt, larg, prof = info["opcoes"][escolha_dim]
+        # Criação da lista dinâmica de opções de dimensões para o equipamento selecionado
+        opcoes_dim = list(info["dims"].keys()) + ["Inserir Dimensões Manualmente"]
+        
+        escolha_final_dim = st.selectbox(f"Selecione as dimensões para {equip_escolhido}:", options=opcoes_dim)
+        
+        # Variáveis de dimensão
+        if escolha_final_dim == "Inserir Dimensões Manualmente":
+            st.info("Digite os valores personalizados:")
+            col_m1, col_m2, col_m3 = st.columns(3)
+            alt = col_m1.number_input("Altura [A] (mm)", value=500.0)
+            larg = col_m2.number_input("Largura [L] (mm)", value=500.0)
+            prof = col_m3.number_input("Profundidade [P] (mm)", value=500.0)
         else:
-            alt, larg, prof = info["dim"]
+            alt, larg, prof = info["dims"][escolha_final_dim]
 
-        gap_base = info["gap"]
-        dist_base = info["dist"]
-        dim_str = f"{alt} x {larg} x {prof} mm"
+        # Parâmetros automáticos de Gap e Distância
+        gap_auto = info["gap"]
+        dist_auto = info["dist"]
+        dim_consolidada = f"{alt} x {larg} x {prof} mm"
 
         st.markdown("---")
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("GAP (mm)", f"{gap_base}")
-        c2.metric("D_trab (mm)", f"{dist_base}")
-        c3.metric("Altura [A]", f"{alt} mm")
-        c4.metric("Largura [L]", f"{larg} mm")
-        c5.metric("Profundidade [P]", f"{prof} mm")
+        c1.metric("GAP sugerido (mm)", f"{gap_auto}")
+        c2.metric("D_trab sugerida (mm)", f"{dist_auto}")
+        c3.metric("Altura (A)", f"{alt} mm")
+        c4.metric("Largura (L)", f"{larg} mm")
+        c5.metric("Profundidade (P)", f"{prof} mm")
 
+    # --- ABA 2: CÁLCULOS E RESULTADOS ---
     with tab2:
-        col_a, col_b, col_c = st.columns(3)
-        v_oc = col_a.number_input("Tensão Voc (kV)", value=13.80, format="%.2f")
-        gap_g = col_b.number_input("Gap G (mm)", value=float(gap_base), format="%.2f")
-        tempo_t = col_c.number_input("Tempo T (ms)", value=488.0, format="%.2f")
+        col1, col2, col3 = st.columns(3)
+        v_oc = col1.number_input("Tensão Voc (kV)", value=13.80, format="%.2f")
+        gap_g = col2.number_input("Gap G (mm)", value=float(gap_auto), format="%.2f")
+        tempo_t = col3.number_input("Tempo T (ms)", value=488.0, format="%.2f")
 
-        col_d, col_e, col_f = st.columns(3)
-        i_bf = col_d.number_input("Curto Ibf (kA)", value=4.85, format="%.2f")
-        dist_d = col_e.number_input("Distância D (mm)", value=float(dist_base), format="%.2f")
+        col4, col5, col6 = st.columns(3)
+        i_bf = col4.number_input("Curto Ibf (kA)", value=4.85, format="%.2f")
+        dist_d = col5.number_input("Distância D (mm)", value=float(dist_auto), format="%.2f")
 
         if st.button("Calcular Resultados"):
+            # Coeficientes
             k_ia = {
                 600: [-0.04287, 1.035, -0.083, 0, 0, -4.783e-9, 1.962e-6, -0.000229, 0.003141, 1.092],
                 2700: [0.0065, 1.001, -0.024, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729],
@@ -100,6 +114,7 @@ def main():
                 14300: [3.825917, 0.11, -0.999749, -1.557e-12, 4.556e-10, -4.186e-8, 8.346e-7, 5.482e-5, -0.003191, 0.9729, 0, -1.568, 0.99]
             }
             
+            # Cálculo do fator de caixa (CF)
             ees = (alt/25.4 + larg/25.4) / 2.0
             cf = -0.0003*ees**2 + 0.03441*ees + 0.4325
             
@@ -116,9 +131,9 @@ def main():
             cat = "CAT 2" if e_calcm2 <= 8 else "CAT 4" if e_calcm2 <= 40 else "EXTREMO RISCO"
             
             st.session_state['res'] = {
-                "Ia": ia_f, "IaMin": ia_min, "E_cal": e_calcm2, "E_joule": e_jcm2, 
-                "DLA": dla_f, "Cat": cat, "Voc": v_oc, "Equip": escolha,
-                "Gap": gap_g, "Dist": dist_d, "Dim": dim_str, "Ibf": i_bf, "Tempo": tempo_t
+                "Ia": ia_f, "IaMin": ia_min, "E_cal": e_calcm2, "E_joule": e_jcm2, "DLA": dla_f, 
+                "Cat": cat, "Voc": v_oc, "Equip": equip_escolhido, "Gap": gap_g, "Dist": dist_d, 
+                "Dim": dim_consolidada, "Ibf": i_bf, "Tempo": tempo_t
             }
             
             st.divider()
@@ -129,52 +144,46 @@ def main():
             r4.metric("Fronteira (mm)", f"{dla_f:.0f}")
             st.warning(f"🛡️ Vestimenta Sugerida: **{cat}**")
 
+    # --- ABA 3: RELATÓRIO ---
     with tab3:
         if 'res' in st.session_state:
             r = st.session_state['res']
-            st.subheader(f"Laudo Técnico de Conformidade - {r['Equip']}")
+            st.subheader(f"Gerar Relatório Técnico - {r['Equip']}")
             
             def export_pdf():
                 buf = io.BytesIO()
                 c = canvas.Canvas(buf, pagesize=A4)
                 
-                # --- Cabeçalho ---
+                # Cabeçalho Profissional
                 c.setStrokeColor(colors.black); c.rect(1*cm, 25.5*cm, 19*cm, 3*cm)
                 c.setFont("Helvetica-Bold", 14); c.drawString(7.5*cm, 27.5*cm, "LAUDO TÉCNICO DE ARCO ELÉTRICO")
-                c.setFont("Helvetica", 9); c.drawString(7.5*cm, 27*cm, "Conforme NBR 17227:2025 | IEEE 1584 | NR-10")
-                c.drawString(1.5*cm, 26.5*cm, "[ INSERIR LOGOTIPO DA EMPRESA ]")
+                c.setFont("Helvetica", 9); c.drawString(7.5*cm, 27*cm, "NBR 17227:2025 | NR-10 | IEEE 1584")
+                c.drawString(1.5*cm, 26.5*cm, "[ ESPAÇO PARA LOGOTIPO DA EMPRESA ]")
                 
-                # --- 1. Dados de Entrada ---
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, 24.5*cm, "1. DADOS DO EQUIPAMENTO E PARÂMETROS DE ENTRADA")
+                # Dados de Entrada
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, 24.5*cm, "1. DADOS DE ENTRADA")
                 c.setFont("Helvetica", 10); y = 23.8*cm
-                c.drawString(1.5*cm, y, f"Equipamento: {r['Equip']}"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"GAP [G]: {r['Gap']} mm | Distância de Trabalho [D]: {r['Dist']} mm"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Dimensões do Invólucro [AxLxP]: {r['Dim']}"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Tensão de Operação: {r['Voc']} kV | Curto-Circuito (Ibf): {r['Ibf']} kA"); y -= 1.2*cm
+                c.drawString(1.5*cm, y, f"Equipamento: {r['Equip']}") ; y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"GAP: {r['Gap']} mm | Distância de Trabalho [D]: {r['Dist']} mm") ; y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Dimensões do Invólucro [AxLxP]: {r['Dim']}") ; y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Tensão: {r['Voc']} kV | Curto (Ibf): {r['Ibf']} kA") ; y -= 1.2*cm
 
-                # --- 2. Resultados ---
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "2. RESULTADOS DOS CÁLCULOS TÉCNICOS")
+                # Resultados Técnicos
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "2. RESULTADOS TÉCNICOS")
                 c.setFont("Helvetica", 10); y -= 0.8*cm
-                c.drawString(1.5*cm, y, f"Corrente de Arco Final (Iarc): {r['Ia']:.4f} kA"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Corrente de Arco Reduzida: {r['IaMin']:.4f} kA"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Energia Incidente: {r['E_cal']:.4f} cal/cm²"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Energia Incidente (S.I.): {r['E_joule']:.4f} J/cm²"); y -= 0.6*cm
-                c.drawString(1.5*cm, y, f"Fronteira de Segurança (DLA): {r['DLA']:.0f} mm"); y -= 0.6*cm
-                c.setFont("Helvetica-Bold", 10); c.drawString(1.5*cm, y, f"Categoria de Vestimenta Definida: {r['Cat']}"); y -= 1.5*cm
+                c.drawString(1.5*cm, y, f"Corrente Arco (Iarc): {r['Ia']:.4f} kA | Reduzida: {r['IaMin']:.4f} kA") ; y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Energia Incidente: {r['E_cal']:.4f} cal/cm² ({r['E_joule']:.4f} J/cm²)") ; y -= 0.6*cm
+                c.drawString(1.5*cm, y, f"Distância Segura (DLA): {r['DLA']:.0f} mm") ; y -= 0.6*cm
+                c.setFont("Helvetica-Bold", 10); c.drawString(1.5*cm, y, f"Vestimenta Recomendada: {r['Cat']}") ; y -= 1.5*cm
 
-                # --- 3. NR-10 e EPIs ---
-                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "3. PRESCRIÇÕES DE SEGURANÇA E EPIs (NR-10)")
+                # Texto de Segurança NR-10
+                c.setFont("Helvetica-Bold", 11); c.drawString(1*cm, y, "3. PRESCRIÇÕES NR-10")
                 c.setFont("Helvetica", 9); y -= 0.8*cm
-                epi_text = [
-                    "EPIs Obrigatórios: Capacete com viseira, protetor auditivo, calçados sem metal.",
-                    f"Vestimenta: Deve possuir ATPV superior a {r['E_cal']:.2f} cal/cm² ({r['Cat']}).",
-                    "EPCs: Barreiras, sinalização de 'Risco de Arco' e isolamento da área DLA.",
-                    "Nota: A intervenção exige profissional habilitado e análise de risco (APR)."
-                ]
-                for line in epi_text:
-                    c.drawString(1.5*cm, y, line); y -= 0.5*cm
+                c.drawString(1.5*cm, y, "EPIs Obrigatórios: Capacete c/ viseira, Protetor Auditivo, Luvas Isolantes.") ; y -= 0.5*cm
+                c.drawString(1.5*cm, y, f"Vestimenta: Nível de proteção mínima necessária: {r['E_cal']:.2f} cal/cm².") ; y -= 0.5*cm
+                c.drawString(1.5*cm, y, "Atenção: Operação proibida acima de 40 cal/cm² sem procedimentos especiais.") ; y -= 1*cm
                 
-                # --- Rodapé Assinatura ---
+                # Assinatura
                 c.line(5*cm, 3*cm, 16*cm, 3*cm)
                 c.setFont("Helvetica", 8); c.drawString(8.5*cm, 2.6*cm, "Engenheiro Responsável / CREA")
                 
@@ -182,7 +191,7 @@ def main():
                 
             st.download_button("📩 Baixar Laudo Profissional (PDF)", export_pdf(), "laudo_arco_profissional.pdf", "application/pdf")
         else:
-            st.info("⚠️ Execute o cálculo na aba 'Cálculos e Resultados' para habilitar a geração do relatório.")
+            st.info("⚠️ Execute o cálculo para gerar o relatório.")
 
 if __name__ == "__main__":
     main()
