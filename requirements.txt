@@ -1,4 +1,4 @@
 streamlit
-numpy
-reportlab
 pandas
+numpy
+plotly
